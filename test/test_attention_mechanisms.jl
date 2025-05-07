@@ -28,7 +28,7 @@
     end
     
     # Test numerical equivalence between DotProductAttention and NNlib.dot_product_attention
-    @testset "Numerical Equivalence" begin
+    @testset "DotProductAttention vs NNlib Equivalence" begin
         # Test with different configurations
         for (d_model, seq_len, batch_size, nheads) in [
             (4, 3, 2, 1),    # Single head
