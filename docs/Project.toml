@@ -1,0 +1,7 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Attention = "3e84749a-8905-56bb-91b8-e3f518e61527"
+
+[compat]
+Documenter = "1"
+Attention = "0.1" 
