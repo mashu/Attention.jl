@@ -7,8 +7,8 @@ A Julia package providing modular and extensible attention mechanisms for deep l
 - Modular attention mechanism interface through the `AbstractAttention` type
 - Ready-to-use implementations including:
   - `DotProductAttention`: Standard scaled dot-product attention
-  - `NNlibAttention`: Interface to NNlib's attention (currently a fallback to `DotProductAttention`)
-- `MultiHeadAttention`: Full implementation of multi-head attention compatible with Flux
+  - `NNlibAttention`: Wrapper for `NNlib.dot_product_attention`, allowing use of optimized kernels where available.
+  - `MultiHeadAttention`: Full implementation of multi-head attention compatible with Flux
 - Useful utilities like `make_causal_mask` for creating causal masks
 - Fully compatible with automatic differentiation frameworks (Zygote, CUDA)
 - Clean, efficient implementation with minimal dependencies
@@ -17,7 +17,7 @@ A Julia package providing modular and extensible attention mechanisms for deep l
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/username/Attention.jl.git")
+Pkg.add(url="https://github.com/mashu/Attention.jl.git")
 ```
 
 ## Usage
@@ -45,24 +45,59 @@ mask = make_causal_mask(x)
 output, attention = mha(x, mask=mask)
 ```
 
-### Custom Attention Mechanisms
+### Specifying the Underlying Attention Mechanism
 
-You can create custom attention mechanisms by extending the `AbstractAttention` type:
+By default, `MultiHeadAttention` uses `DotProductAttention` as its core attention calculation method. However, you can specify a different underlying attention mechanism by passing an instance of any `AbstractAttention` subtype to the `attention_impl` keyword argument.
+
+This allows you to easily swap out attention implementations, for example, to use optimized versions or experiment with custom behaviors, as long as they conform to the `AbstractAttention` interface (primarily by implementing the `Attention.compute_attention` method).
+
+For example, to explicitly use `NNlibAttention` (which wraps `NNlib.dot_product_attention` and can leverage optimized kernels):
 
 ```julia
-struct MyCustomAttention <: AbstractAttention
-    # Custom parameters here
-end
+using Attention
+using Flux
 
-function Attention.compute_attention(::MyCustomAttention, q, k, v, bias=nothing; 
-                                   mask=nothing, nheads=1, fdrop=identity)
-    # Custom implementation here
-    return output, attention_weights
-end
+# Example input (same as above)
+batch_size = 32
+seq_len = 20
+d_model = 512
+x = rand(Float32, d_model, seq_len, batch_size)
 
-# Use with MultiHeadAttention
-mha = MultiHeadAttention(512, 8, attention_impl=MyCustomAttention())
+# Using NNlibAttention explicitly within MultiHeadAttention
+mha_with_nnlib = Attention.MultiHeadAttention(d_model, 8, attention_impl=Attention.NNlibAttention())
+
+# This instance of MultiHeadAttention will use NNlib.dot_product_attention for its core calculations.
+# output, attention_weights = mha_with_nnlib(x)
+
+# If you had defined your own mechanism, e.g.:
+# struct MyCustomMechanism <: AbstractAttention end
+# function Attention.compute_attention(::MyCustomMechanism, q, k, v, ...)
+#   # ... your implementation ...
+# end
+# You would pass it as:
+# mha_custom = MultiHeadAttention(d_model, 8, attention_impl=MyCustomMechanism())
 ```
+
+## Examples
+
+### MNIST Image Classification with Attention
+
+The `examples/mnist_classification/` directory contains a complete example of using `Attention.jl` to build a model for classifying MNIST digits. This example demonstrates:
+
+-   Integrating `MultiHeadAttention` with a Convolutional Neural Network (CNN) front-end.
+-   Preprocessing image data to make it suitable for attention layers (reshaping feature maps into sequences).
+-   A full training and evaluation loop using Flux.jl and MLDatasets.jl, showcasing modern Flux training style with `Flux.setup` and `Flux.withgradient`.
+
+To run the example:
+1.  Navigate to the `examples/mnist_classification/` directory in your terminal.
+2.  Activate the project environment: `julia --project=.`
+3.  Instantiate the project dependencies by running the following in the Julia REPL:
+    ```julia
+    using Pkg; Pkg.instantiate()
+    ```
+4.  Execute the training script from your terminal: `julia train_mnist.jl`
+
+This example provides a practical guide for incorporating attention mechanisms from this package into larger deep learning models.
 
 ## Dimensions
 

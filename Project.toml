@@ -1,6 +1,6 @@
 name = "Attention"
 uuid = "3e84749a-8905-56bb-91b8-e3f518e61527"
-authors = ["LinearAttention.jl Contributors"]
+authors = ["Mateusz Kaduk <mateusz.kaduk@gmail.com>"]
 version = "0.1.0"
 
 [deps]
