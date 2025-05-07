@@ -41,9 +41,6 @@ join_heads(x) = reshape(x, :, size(x)[3:end]...)
 
 function compute_attention(::DotProductAttention, q, k, v, bias=nothing; 
                           mask=nothing, nheads::Int=1, fdrop=identity)
-    d_model, seq_len_q, batch_size = size(q)
-    _, seq_len_k, _ = size(k)
-    
     # Split heads using NNlib's approach
     q_4d = split_heads(q, nheads)  # (head_dim, nheads, seq_len_q, batch)
     k_4d = split_heads(k, nheads)  # (head_dim, nheads, seq_len_k, batch)

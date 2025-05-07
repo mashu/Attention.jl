@@ -1,0 +1,5 @@
+[deps]
+Attention = "3e84749a-8905-56bb-91b8-e3f518e61527"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+MLDatasets = "eb30cadb-4394-5ae3-aed4-317e484a6458"
