@@ -14,6 +14,7 @@ A Julia package providing modular and extensible attention mechanisms for deep l
   - `NNlibAttention`: Wrapper for `NNlib.dot_product_attention`, allowing use of optimized kernels where available.
   - `MultiHeadAttention`: Full implementation of multi-head attention compatible with Flux
 - Useful utilities like `make_causal_mask` for creating causal masks
+- Support for custom transformations on Q and K tensors in `MultiHeadAttention` (e.g., for RoPE)
 - Fully compatible with automatic differentiation frameworks (Zygote, CUDA)
 - Clean, efficient implementation with minimal dependencies
 
@@ -48,6 +49,12 @@ mask = make_causal_mask(x)
 # Apply attention with mask
 output, attention = mha(x, mask=mask)
 ```
+
+### Applying Transformations to Queries and Keys
+
+`MultiHeadAttention` supports applying custom transformations to the query (Q) and key (K) tensors. This is done *after* their initial linear projections but *before* the attention scores are computed. This feature is useful for incorporating advanced positional embedding techniques, such as Rotary Positional Embeddings (RoPE).
+
+To use this, provide functions to the `q_transform` and `k_transform` keyword arguments in the `MultiHeadAttention` constructor. Both default to `identity` (no transformation). For RoPE, you would typically pass the same RoPE transformation function to both arguments.
 
 ### Specifying the Underlying Attention Mechanism
 

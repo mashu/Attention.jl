@@ -1,5 +1,5 @@
 """
-    MultiHeadAttention(d_model, nheads=8; bias=false, dropout_prob=0.0, attention_impl=DotProductAttention())
+    MultiHeadAttention(d_model, nheads=8; bias=false, dropout_prob=0.0, attention_impl=DotProductAttention(), q_transform=identity, k_transform=identity)
 
 The multi-head dot-product attention layer used in Transformer architectures.
 
@@ -12,6 +12,8 @@ Returns the transformed input sequence and the attention scores.
 - `bias`: whether pointwise QKVO dense transforms use bias. Default `false`.
 - `dropout_prob`: dropout probability for the attention scores. Default `0.0`.
 - `attention_impl`: the attention implementation to use. Default `DotProductAttention()`.
+- `q_transform`: a function to apply to the query tensor after projection. Default `identity`.
+- `k_transform`: a function to apply to the key tensor after projection. Default `identity`.
 """
 struct MultiHeadAttention{P1, D, P2, A<:AbstractAttention}
   nheads::Int
@@ -19,6 +21,8 @@ struct MultiHeadAttention{P1, D, P2, A<:AbstractAttention}
   q_proj::P1
   k_proj::P1
   v_proj::P1
+  q_transform::Function
+  k_transform::Function
   attn_drop::D
   out_proj::P2
   attn_impl::A
@@ -29,7 +33,9 @@ Flux.@layer MultiHeadAttention
 function MultiHeadAttention(d_model::Int, nheads::Int=8; 
                      bias::Bool=false,
                      dropout_prob=0.0,
-                     attention_impl=DotProductAttention())
+                     attention_impl=DotProductAttention(),
+                     q_transform::Function = identity,
+                     k_transform::Function = identity)
 
   d_model % nheads == 0 || throw(ArgumentError("d_model ($d_model) must be divisible by nheads ($nheads)"))
   
@@ -41,7 +47,7 @@ function MultiHeadAttention(d_model::Int, nheads::Int=8;
   attn_drop = Dropout(dropout_prob)
   out_proj = Dense(d_model => d_model; bias=bias)
   
-  return MultiHeadAttention(nheads, head_size, q_proj, k_proj, v_proj, attn_drop, out_proj, attention_impl)
+  return MultiHeadAttention(nheads, head_size, q_proj, k_proj, v_proj, q_transform, k_transform, attn_drop, out_proj, attention_impl)
 end
 
 # self-attention
@@ -54,9 +60,13 @@ function (mha::MultiHeadAttention)(q_in, k_in, v_in, bias=nothing; mask=nothing)
   ## [q_in] = [q_in_dim, q_len, batch_size]
   ## [k_in] = [k_in_dim, kv_len, batch_size] 
   ## [v_in] = [v_in_dim, kv_len, batch_size]
-  q = mha.q_proj(q_in)  # [q] = [qk_dim, q_len, batch_size]
-  k = mha.k_proj(k_in)  # [k] = [qk_dim, kv_len, batch_size] 
+  q_projected = mha.q_proj(q_in)  # [q] = [qk_dim, q_len, batch_size]
+  k_projected = mha.k_proj(k_in)  # [k] = [qk_dim, kv_len, batch_size] 
   v = mha.v_proj(v_in)  # [v] = [v_dim, kv_len, batch_size]
+  
+  # Apply Q and K transformations
+  q = mha.q_transform(q_projected)
+  k = mha.k_transform(k_projected)
   
   # Use the attention implementation
   x, α = compute_attention(mha.attn_impl, q, k, v, bias; 
