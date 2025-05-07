@@ -1,4 +1,4 @@
-@testset "MultiHeadAttention" begin
+@testset "MultiHeadAttention" verbose=true begin
     # Test MultiHeadAttention construction
     @testset "Construction" begin
         # Test with default parameters

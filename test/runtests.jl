@@ -3,7 +3,7 @@ using Attention
 using Flux
 using LinearAlgebra
 
-@testset "Attention.jl" begin
+@testset "Attention.jl" verbose=true begin
     # Run the attention mechanics tests
     include("test_attention_mechanisms.jl")
     

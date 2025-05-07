@@ -1,4 +1,4 @@
-@testset "Attention Mechanisms" begin
+@testset "Attention Mechanisms" verbose=true begin
     # Test dimensions and values for DotProductAttention
     @testset "DotProductAttention" begin
         # Create input tensors
