@@ -32,7 +32,7 @@ using Attention
 using Flux
 
 # Create a MultiHeadAttention layer
-mha = MultiHeadAttention(512, 8, dropout_prob=0.1)
+mha = Attention.MultiHeadAttention(512, 8, dropout_prob=0.1)
 
 # Create sample input
 batch_size = 32
@@ -86,7 +86,7 @@ mha_with_nnlib = Attention.MultiHeadAttention(d_model, 8, attention_impl=Attenti
 #   # ... your implementation ...
 # end
 # You would pass it as:
-# mha_custom = MultiHeadAttention(d_model, 8, attention_impl=MyCustomMechanism())
+# mha_custom = Attention.MultiHeadAttention(d_model, 8, attention_impl=MyCustomMechanism())
 ```
 
 ## Examples
