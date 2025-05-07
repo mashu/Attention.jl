@@ -1,6 +1,7 @@
 using Test
 using Attention
 using Flux
+using LinearAlgebra
 
 @testset "Attention.jl" begin
     # Run the attention mechanics tests

@@ -35,66 +35,52 @@ Standard scaled dot-product attention as described in "Attention is All You Need
 """
 struct DotProductAttention <: AbstractAttention end
 
+# Helper functions for multi-head attention
+split_heads(x, nheads) = reshape(x, size(x, 1) ÷ nheads, nheads, size(x)[2:end]...)
+join_heads(x) = reshape(x, :, size(x)[3:end]...)
+
 function compute_attention(::DotProductAttention, q, k, v, bias=nothing; 
                           mask=nothing, nheads::Int=1, fdrop=identity)
     d_model, seq_len_q, batch_size = size(q)
     _, seq_len_k, _ = size(k)
     
-    # Calculate head dimensions
-    head_dim = div(d_model, nheads)
-    
-    # Reshape to separate heads - (head_dim, num_heads, seq_len, batch)
-    q_4d = reshape(q, head_dim, nheads, seq_len_q, batch_size)
-    k_4d = reshape(k, head_dim, nheads, seq_len_k, batch_size)
-    v_4d = reshape(v, head_dim, nheads, seq_len_k, batch_size)
-    
-    # Rearrange dimensions for batched_mul
-    # We want (seq_len_q, head_dim) × (head_dim, seq_len_k) for each head and batch
-    q_perm = permutedims(q_4d, (3, 1, 2, 4))  # (seq_len_q, head_dim, nheads, batch)
-    k_perm = permutedims(k_4d, (1, 3, 2, 4))  # (head_dim, seq_len_k, nheads, batch)
-    
-    # Reshape for batched multiplication
-    # Combine head and batch dimensions as the batch dimension for batched_mul
-    q_reshaped = reshape(q_perm, seq_len_q, head_dim, nheads * batch_size)
-    k_reshaped = reshape(k_perm, head_dim, seq_len_k, nheads * batch_size)
+    # Split heads using NNlib's approach
+    q_4d = split_heads(q, nheads)  # (head_dim, nheads, seq_len_q, batch)
+    k_4d = split_heads(k, nheads)  # (head_dim, nheads, seq_len_k, batch)
+    v_4d = split_heads(v, nheads)  # (head_dim, nheads, seq_len_k, batch)
     
     # Compute attention scores
-    scores = NNlib.batched_mul(q_reshaped, k_reshaped) ./ sqrt(Float32(head_dim))
-    
-    # Reshape scores back to (seq_len_q, seq_len_k, nheads, batch)
-    scores_4d = reshape(scores, seq_len_q, seq_len_k, nheads, batch_size)
-    
-    # Apply mask if provided
-    if mask !== nothing
-        scores_4d = scores_4d .+ mask
-    end
+    kt = permutedims(k_4d, (3, 1, 2, 4))  # (seq_len_k, head_dim, nheads, batch)
+    qt = permutedims(q_4d, (1, 3, 2, 4)) ./ sqrt(Float32(size(q_4d, 1)))  # (head_dim, seq_len_q, nheads, batch)
+    scores = NNlib.batched_mul(kt, qt)  # (seq_len_k, seq_len_q, nheads, batch)
     
     # Apply bias if provided
     if bias !== nothing
-        scores_4d = scores_4d .+ bias
+        scores = scores .+ bias
     end
     
-    # Apply softmax to get attention weights
-    attn_weights = softmax(scores_4d; dims=2)
+    # Apply mask if provided - exactly like NNlib does
+    if mask !== nothing
+        T = eltype(scores)
+        scores = ifelse.(mask, scores, typemin(T))
+    end
+    
+    # Apply softmax to get attention weights - after masking
+    attn_weights = softmax(scores; dims=1)
     
     # Apply dropout if provided
     attn_weights = fdrop(attn_weights)
     
-    # Rearrange dimensions for value multiplication
-    v_perm = permutedims(v_4d, (3, 1, 2, 4))  # (seq_len_k, head_dim, nheads, batch)
-    v_reshaped = reshape(v_perm, seq_len_k, head_dim, nheads * batch_size)
-    attn_reshaped = reshape(attn_weights, seq_len_q, seq_len_k, nheads * batch_size)
-    
     # Apply attention weights to values
-    output = NNlib.batched_mul(attn_reshaped, v_reshaped)
+    vt = permutedims(v_4d, (1, 3, 2, 4))  # (head_dim, seq_len_k, nheads, batch)
+    output = NNlib.batched_mul(vt, attn_weights)  # (head_dim, seq_len_q, nheads, batch)
+    output = permutedims(output, (1, 3, 2, 4))  # (head_dim, nheads, seq_len_q, batch)
     
-    # Reshape to final output shape (d_model, seq_len_q, batch)
-    output = reshape(output, seq_len_q, head_dim, nheads, batch_size)
-    output = permutedims(output, (2, 1, 3, 4))
-    output = reshape(output, d_model, seq_len_q, batch_size)
+    # Join heads
+    output = join_heads(output)
     
-    # Return the attended output and the attention scores
-    return output, permutedims(attn_weights, (2, 1, 3, 4))
+    # Return the attended output and the attention weights (post-softmax)
+    return output, attn_weights
 end
 
 """
@@ -134,7 +120,6 @@ The mask ensures that position `i` can only attend to positions `j ≤ i`.
 """
 function make_causal_mask(x::AbstractArray, dims::Int=2)
     seq_len = size(x, dims)
-    # Create an upper triangular matrix including the diagonal
-    # This is equivalent to a causal mask where each position can attend to itself and all previous positions
-    return Bool.(UpperTriangular(ones(seq_len, seq_len)))
+    # Create boolean mask where true means "allow attention"
+    return UpperTriangular(ones(Bool, seq_len, seq_len))
 end 
