@@ -1,4 +1,7 @@
-# Attention.jl
+# Attention
+
+[![Build Status](https://github.com/mashu/Attention.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/mashu/Attention.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/mashu/Attention.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/mashu/Attention.jl)
 
 A Julia package providing modular and extensible attention mechanisms for deep learning models.
 
