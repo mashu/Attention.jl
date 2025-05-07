@@ -19,7 +19,7 @@ export AbstractAttention
 export compute_attention
 
 # Export concrete attention mechanisms
-export DotProductAttention, NNlibAttention
+export DotProductAttention, NNlibAttention, LinearAttention
 
 # Export MultiHeadAttention
 export MultiHeadAttention

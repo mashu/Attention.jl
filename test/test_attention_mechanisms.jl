@@ -98,4 +98,83 @@
         expected = UpperTriangular(ones(Bool, seq_len, seq_len))
         @test mask == expected
     end
+
+    @testset "LinearAttention" begin
+        d_model = 4
+        seq_len_q = 3
+        seq_len_k = 3 # For self-attention type tests
+        batch_size = 2
+        epsilon = 1f-6
+
+        # Create sample inputs
+        q = rand(Float32, d_model, seq_len_q, batch_size)
+        k = rand(Float32, d_model, seq_len_k, batch_size)
+        v = rand(Float32, d_model, seq_len_k, batch_size)
+
+        # Test with default epsilon
+        mechanism = Attention.LinearAttention()
+        @test mechanism.epsilon == epsilon # Check default epsilon
+
+        # Test with custom epsilon
+        custom_eps = 1f-4
+        mechanism_custom_eps = Attention.LinearAttention(custom_eps)
+        @test mechanism_custom_eps.epsilon == custom_eps
+
+        # Compute attention (non-causal case, mask=nothing)
+        output, attention_weights = Attention.compute_attention(mechanism, q, k, v)
+        
+        # Test output shape
+        @test size(output) == (d_model, seq_len_q, batch_size)
+        @test attention_weights === nothing # LinearAttention returns nothing for weights
+
+        # Test with multiple heads (non-causal)
+        nheads_multi = 2
+        output_multi, weights_multi = Attention.compute_attention(mechanism, q, k, v; nheads=nheads_multi)
+        @test size(output_multi) == (d_model, seq_len_q, batch_size)
+        @test weights_multi === nothing
+
+        # Test with causal mask (autoregressive implies seq_len_q == seq_len_k typically for S, Z updates)
+        # Let's use same seq_len for q, k, v for causal test
+        seq_len_causal = 3
+        q_causal = rand(Float32, d_model, seq_len_causal, batch_size)
+        k_causal = rand(Float32, d_model, seq_len_causal, batch_size)
+        v_causal = rand(Float32, d_model, seq_len_causal, batch_size)
+        causal_mask = Attention.make_causal_mask(q_causal) # Generates UpperTriangular mask
+
+        output_causal, weights_causal = Attention.compute_attention(mechanism, q_causal, k_causal, v_causal; mask=causal_mask, nheads=1)
+        @test size(output_causal) == (d_model, seq_len_causal, batch_size)
+        @test weights_causal === nothing
+
+        # Test with multiple heads (causal)
+        output_causal_multi, weights_causal_multi = Attention.compute_attention(mechanism, q_causal, k_causal, v_causal; mask=causal_mask, nheads=nheads_multi)
+        @test size(output_causal_multi) == (d_model, seq_len_causal, batch_size)
+        @test weights_causal_multi === nothing
+
+        # Test that output is not NaN or Inf (basic sanity check)
+        @test !any(isnan, output)
+        @test !any(isinf, output)
+        @test !any(isnan, output_multi)
+        @test !any(isinf, output_multi)
+        @test !any(isnan, output_causal)
+        @test !any(isinf, output_causal)
+        @test !any(isnan, output_causal_multi)
+        @test !any(isinf, output_causal_multi)
+
+        # Test different sequence lengths for Q and K/V (non-causal)
+        seq_len_q_diff = 5
+        seq_len_kv_diff = 3
+        q_diff = rand(Float32, d_model, seq_len_q_diff, batch_size)
+        k_diff = rand(Float32, d_model, seq_len_kv_diff, batch_size)
+        v_diff = rand(Float32, d_model, seq_len_kv_diff, batch_size)
+
+        output_diff, _ = Attention.compute_attention(mechanism, q_diff, k_diff, v_diff; nheads=1)
+        @test size(output_diff) == (d_model, seq_len_q_diff, batch_size)
+        @test !any(isnan, output_diff)
+        @test !any(isinf, output_diff)
+
+        output_diff_multi, _ = Attention.compute_attention(mechanism, q_diff, k_diff, v_diff; nheads=nheads_multi)
+        @test size(output_diff_multi) == (d_model, seq_len_q_diff, batch_size)
+        @test !any(isnan, output_diff_multi)
+        @test !any(isinf, output_diff_multi)
+    end
 end 

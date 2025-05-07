@@ -57,7 +57,7 @@ function create_model(d_model::Int, nheads::Int, device)
     # Attention layer expects input of shape (features, seq_len, batch_size)
     # `d_model` is the feature dimension from the CNN
     # `seq_len` will be 7*7 = 49 after flattening the spatial dimensions of the CNN output
-    mha = Attention.MultiHeadAttention(d_model, nheads) |> device
+    mha = Attention.MultiHeadAttention(d_model, nheads, attention_impl=Attention.LinearAttention(1f-8)) |> device
 
     # Classifier head
     classifier_head = Dense(d_model, 10) |> device # 10 classes for MNIST
@@ -115,7 +115,7 @@ function train(; epochs=10, batch_size=128, lr=3e-4, d_model=32, nheads=4)
             end
             Flux.update!(opt_state, model, grads[1])
         end
-        
+
         # Log progress
         train_acc = accuracy(train_loader, model, device)
         test_acc = accuracy(test_loader, model, device)
@@ -150,4 +150,4 @@ if abspath(PROGRAM_FILE) == @__FILE__
     )
     # You can save the model or do further evaluation here
     # For example: using BSON: @save "mnist_attention_model.bson" trained_model
-end 
+end

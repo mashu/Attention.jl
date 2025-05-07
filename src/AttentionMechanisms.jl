@@ -120,3 +120,95 @@ function make_causal_mask(x::AbstractArray, dims::Int=2)
     # Create boolean mask where true means "allow attention"
     return UpperTriangular(ones(Bool, seq_len, seq_len))
 end 
+
+"""
+    LinearAttention <: AbstractAttention
+
+Linear Attention as described in "Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention".
+
+# Fields
+- `epsilon`: A small value added for numerical stability, particularly in the denominator of the attention calculation. Defaults to `1f-6`.
+"""
+struct LinearAttention{T<:Real} <: AbstractAttention
+    epsilon::T
+end
+
+LinearAttention() = LinearAttention(1f-6)
+
+# Feature map φ(x) = elu(x) + 1
+phi(x) = NNlib.elu.(x) .+ 1
+
+function compute_attention(mechanism::LinearAttention, q, k, v, bias=nothing; 
+                          mask=nothing, nheads::Int=1, fdrop=identity)
+    
+    # Input shapes:
+    # q: (d_model, seq_len_q, batch)
+    # k: (d_model, seq_len_k, batch)
+    # v: (d_model, seq_len_v, batch) - typically seq_len_k == seq_len_v
+    # bias, mask: Accepted to match interface, but not used in this non-causal implementation.
+
+    # Dimensions are implicitly handled by array operations below.
+    # d_model, seq_len_q, batch_size = size(q)
+    # _, seq_len_k, _ = size(k)
+
+    # Split heads
+    q_h = split_heads(q, nheads)  # (head_dim, nheads, seq_len_q, batch)
+    k_h = split_heads(k, nheads)  # (head_dim, nheads, seq_len_k, batch)
+    v_h = split_heads(v, nheads)  # (head_dim, nheads, seq_len_k, batch) (assuming head_dim_v = head_dim)
+
+    # head_dim = size(q_h, 1) - also implicitly handled
+
+    # Apply feature map φ
+    phi_q = phi(q_h) # (head_dim, nheads, seq_len_q, batch)
+    phi_k = phi(k_h) # (head_dim, nheads, seq_len_k, batch)
+
+    # Non-Causal (Global) Linear Attention Computation
+    
+    # 1. Compute S_global = sum_j phi(K_j)V_j^T
+    # phi_k is (head_dim, nheads, seq_len_k, batch)
+    # v_h is (head_dim, nheads, seq_len_k, batch)
+    # S_global result: (head_dim, head_dim, nheads, batch)
+    
+    # Permute for batched_mul:
+    # phi_k_bm: (head_dim, seq_len_k, nheads, batch)
+    # v_h_bm_T: (seq_len_k, head_dim, nheads, batch)
+    phi_k_bm = permutedims(phi_k, (1,3,2,4)) 
+    v_h_bm_T = permutedims(v_h, (3,1,2,4))
+    
+    S_global = NNlib.batched_mul(phi_k_bm, v_h_bm_T) # (head_dim, head_dim, nheads, batch)
+
+    # 2. Compute Z_global = sum_j phi(K_j)
+    # phi_k is (head_dim, nheads, seq_len_k, batch)
+    # Z_global result: (head_dim, nheads, 1, batch)
+    Z_global = sum(phi_k, dims=3) 
+
+    # 3. Compute Numerator for all Q_i: Numerator_i = phi(Q_i)^T * S_global
+    # phi_q is (head_dim, nheads, seq_len_q, batch)
+    # S_global is (head_dim, head_dim, nheads, batch) -> permuted to (D_v, D_k, H, B)
+    # phi_q is permuted to (D_k, T_q, H, B)
+    # Numerator result: (head_dim_v, nheads, seq_len_q, batch)
+
+    S_global_perm = permutedims(S_global, (2,1,3,4)) # (D_val, D_key, nheads, batch)
+    phi_q_perm = permutedims(phi_q, (1,3,2,4))       # (D_key, seq_len_q, nheads, batch)
+    
+    numerator_h = NNlib.batched_mul(S_global_perm, phi_q_perm) # (D_val, seq_len_q, nheads, batch)
+    numerator_h = permutedims(numerator_h, (1,3,2,4))          # (D_val, nheads, seq_len_q, batch)
+
+    # 4. Compute Denominator for all Q_i: Denominator_i = phi(Q_i)^T * Z_global + epsilon
+    # phi_q is (head_dim, nheads, seq_len_q, batch)
+    # Z_global is (head_dim, nheads, 1, batch)
+    # Denominator result: (1, nheads, seq_len_q, batch)
+    denominator_h = sum(phi_q .* Z_global, dims=1) .+ mechanism.epsilon # Z_global broadcasts
+
+    # 5. Compute per-head output
+    output_h = numerator_h ./ denominator_h # (head_dim, nheads, seq_len_q, batch)
+
+    # Apply dropout to the output
+    output_h_after_dropout = fdrop(output_h)
+
+    # Join heads
+    output = join_heads(output_h_after_dropout) # (d_model, seq_len_q, batch)
+    
+    # Linear attention, in this formulation, does not produce a readily available QK^T style attention matrix.
+    return output, nothing 
+end
