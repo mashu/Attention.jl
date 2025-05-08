@@ -104,21 +104,16 @@
         seq_len_q = 3
         seq_len_k = 3 # For self-attention type tests
         batch_size = 2
-        epsilon = 1f-6
+        # Epsilon is now handled internally in compute_attention using eps(),
+        # so struct field and related tests are removed.
 
         # Create sample inputs
         q = rand(Float32, d_model, seq_len_q, batch_size)
         k = rand(Float32, d_model, seq_len_k, batch_size)
         v = rand(Float32, d_model, seq_len_k, batch_size)
 
-        # Test with default epsilon
+        # Construct the mechanism
         mechanism = Attention.LinearAttention()
-        @test mechanism.epsilon == epsilon # Check default epsilon
-
-        # Test with custom epsilon
-        custom_eps = 1f-4
-        mechanism_custom_eps = Attention.LinearAttention(custom_eps)
-        @test mechanism_custom_eps.epsilon == custom_eps
 
         # Compute attention (non-causal case, mask=nothing)
         output, attention_weights = Attention.compute_attention(mechanism, q, k, v)
