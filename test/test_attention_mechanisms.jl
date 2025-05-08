@@ -120,13 +120,15 @@
         
         # Test output shape
         @test size(output) == (d_model, seq_len_q, batch_size)
-        @test attention_weights === nothing # LinearAttention returns nothing for weights
+        @test size(attention_weights) == (seq_len_k, seq_len_q, 1, batch_size)
+        @test eltype(attention_weights) == eltype(q)
 
         # Test with multiple heads (non-causal)
         nheads_multi = 2
         output_multi, weights_multi = Attention.compute_attention(mechanism, q, k, v; nheads=nheads_multi)
         @test size(output_multi) == (d_model, seq_len_q, batch_size)
-        @test weights_multi === nothing
+        @test size(weights_multi) == (seq_len_k, seq_len_q, nheads_multi, batch_size)
+        @test eltype(weights_multi) == eltype(q)
 
         # Causal tests for LinearAttention are removed for now, as the current
         # implementation is non-causal only. Causal support is planned.
@@ -146,13 +148,17 @@
         k_diff = rand(Float32, d_model, seq_len_kv_diff, batch_size)
         v_diff = rand(Float32, d_model, seq_len_kv_diff, batch_size)
 
-        output_diff, _ = Attention.compute_attention(mechanism, q_diff, k_diff, v_diff; nheads=1)
+        output_diff, attention_weights_diff = Attention.compute_attention(mechanism, q_diff, k_diff, v_diff; nheads=1)
         @test size(output_diff) == (d_model, seq_len_q_diff, batch_size)
+        @test size(attention_weights_diff) == (seq_len_kv_diff, seq_len_q_diff, 1, batch_size)
+        @test eltype(attention_weights_diff) == eltype(q_diff)
         @test !any(isnan, output_diff)
         @test !any(isinf, output_diff)
 
-        output_diff_multi, _ = Attention.compute_attention(mechanism, q_diff, k_diff, v_diff; nheads=nheads_multi)
+        output_diff_multi, attention_weights_diff_multi = Attention.compute_attention(mechanism, q_diff, k_diff, v_diff; nheads=nheads_multi)
         @test size(output_diff_multi) == (d_model, seq_len_q_diff, batch_size)
+        @test size(attention_weights_diff_multi) == (seq_len_kv_diff, seq_len_q_diff, nheads_multi, batch_size)
+        @test eltype(attention_weights_diff_multi) == eltype(q_diff)
         @test !any(isnan, output_diff_multi)
         @test !any(isinf, output_diff_multi)
     end
