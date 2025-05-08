@@ -15,6 +15,7 @@ Attention.AbstractAttention
 Attention.compute_attention
 Attention.DotProductAttention
 Attention.NNlibAttention
+Attention.LinearAttention
 Attention.MultiHeadAttention
 ```
 
