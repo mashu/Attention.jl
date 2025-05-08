@@ -14,7 +14,7 @@ Pkg.add(url="https://github.com/mashu/Attention.jl.git")
 ## Main Features
 
 - Modular attention mechanism interface
-- `DotProductAttention`, `NNlibAttention`, `LinearAttention`, `MultiHeadAttention`
+- `DotProductAttention`, `NNlibAttention`, `LinearAttention` (currently non-causal and global; causal support planned), `MultiHeadAttention`
 - Utilities like `make_causal_mask`
 - Support for custom Q/K transformations (e.g., RoPE)
 
