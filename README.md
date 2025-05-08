@@ -13,6 +13,7 @@ A Julia package providing modular and extensible attention mechanisms for deep l
 - Ready-to-use implementations including:
   - `DotProductAttention`: Standard scaled dot-product attention
   - `NNlibAttention`: Wrapper for `NNlib.dot_product_attention`, allowing use of optimized kernels where available.
+  - `LinearAttention`: Linear complexity attention ("Transformers are RNNs")
   - `MultiHeadAttention`: Full implementation of multi-head attention compatible with Flux
 - Useful utilities like `make_causal_mask` for creating causal masks
 - Support for custom transformations on Q and K tensors in `MultiHeadAttention` (e.g., for RoPE)
