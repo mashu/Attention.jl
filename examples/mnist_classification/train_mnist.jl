@@ -57,7 +57,7 @@ function create_model(d_model::Int, nheads::Int, device)
     # Attention layer expects input of shape (features, seq_len, batch_size)
     # `d_model` is the feature dimension from the CNN
     # `seq_len` will be 7*7 = 49 after flattening the spatial dimensions of the CNN output
-    mha = Attention.MultiHeadAttention(d_model, nheads, attention_impl=Attention.LinearAttention(1f-8)) |> device
+    mha = Attention.MultiHeadAttention(d_model, nheads, attention_impl=Attention.LinearAttention()) |> device
 
     # Classifier head
     classifier_head = Dense(d_model, 10) |> device # 10 classes for MNIST
@@ -139,7 +139,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     const N_HEADS = 4        # Number of attention heads
     const BATCH_SIZE = 256
     const LEARNING_RATE = 1e-3 # Adjusted from 3e-4 for potentially faster initial convergence
-    const EPOCHS = 5         # Reduced for a quick example run
+    const EPOCHS = 200         # Reduced for a quick example run
 
     trained_model = train(
         epochs=EPOCHS,
